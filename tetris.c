@@ -3,27 +3,27 @@
 #include <stdbool.h>
 #include <time.h>
 #include <ctype.h>
-#include<locale.h>
+#include <locale.h>
 
 #define NUM_COLUNAS 5
 #define ALTURA_MAXIMA 10
 #define NUM_TIPOS_BLOCOS 3
 
 typedef struct Bloco {
-    char tipo;             
-    struct Bloco* abaixo;   
+    char tipo;
+    struct Bloco* abaixo;
 } Bloco;
 
 typedef struct {
-    Bloco* topo;            
-    int altura;             
+    Bloco* topo;
+    int altura;
 } Pilha;
 
 typedef struct {
     Pilha colunas[NUM_COLUNAS];
-    int pontuacao;              
-    int linhas_eliminadas;      
-    bool game_over;            
+    int pontuacao;
+    int linhas_eliminadas;
+    bool game_over;
 } Jogo;
 
 void inicializar_jogo(Jogo* jogo) {
@@ -80,25 +80,55 @@ char desempilhar_bloco(Jogo* jogo, int coluna) {
     return tipo;
 }
 
+Bloco* obter_bloco_na_altura(Pilha* pilha, int nivel) {
+    if (nivel <= 0 || nivel > pilha->altura) return NULL;
+    Bloco* atual = pilha->topo;
+    int passos = pilha->altura - nivel;
+    for (int i = 0; i < passos; i++) {
+        atual = atual->abaixo;
+    }
+    return atual;
+}
+
 void verificar_linhas(Jogo* jogo) {
-    bool linha_completa = true;
-    int altura_minima = ALTURA_MAXIMA;
+    int altura_maxima_atual = 0;
 
     for (int i = 0; i < NUM_COLUNAS; i++) {
-        if (jogo->colunas[i].altura < altura_minima) {
-            altura_minima = jogo->colunas[i].altura;
+        if (jogo->colunas[i].altura > altura_maxima_atual) {
+            altura_maxima_atual = jogo->colunas[i].altura;
         }
     }
 
-    if (altura_minima > 0) {
-        for (int i = 0; i < NUM_COLUNAS; i++) {
-            if (jogo->colunas[i].altura > 0) {
-                desempilhar_bloco(jogo, i);
+    for (int nivel = 1; nivel <= altura_maxima_atual; nivel++) {
+        bool linha_completa = true;
+        char tipo_referencia = '\0';
+
+        for (int col = 0; col < NUM_COLUNAS; col++) {
+            Bloco* atual = obter_bloco_na_altura(&jogo->colunas[col], nivel);
+
+            if (atual == NULL) {
+                linha_completa = false;
+                break;
+            }
+
+            if (tipo_referencia == '\0') {
+                tipo_referencia = atual->tipo;
+            } else if (atual->tipo != tipo_referencia) {
+                linha_completa = false;
+                break;
             }
         }
 
-        jogo->linhas_eliminadas++;
-        jogo->pontuacao += NUM_COLUNAS * 10;
+        if (linha_completa) {
+            for (int col = 0; col < NUM_COLUNAS; col++) {
+                desempilhar_bloco(jogo, col);
+            }
+            jogo->linhas_eliminadas++;
+            jogo->pontuacao += NUM_COLUNAS * 10;
+
+            nivel--;
+            altura_maxima_atual--;
+        }
     }
 }
 
@@ -113,13 +143,10 @@ void exibir_tabuleiro(Jogo* jogo) {
         }
     }
 
-    for (int linha = altura_maxima_atual; linha >= 0; linha--) {
+    for (int linha = altura_maxima_atual; linha > 0; linha--) {
         for (int col = 0; col < NUM_COLUNAS; col++) {
-            if (linha < jogo->colunas[col].altura) {
-                Bloco* atual = jogo->colunas[col].topo;
-                for (int i = 0; i < (jogo->colunas[col].altura - linha - 1); i++) {
-                    atual = atual->abaixo;
-                }
+            Bloco* atual = obter_bloco_na_altura(&jogo->colunas[col], linha);
+            if (atual != NULL) {
                 printf(" %c ", atual->tipo);
             } else {
                 printf(" . ");
@@ -156,7 +183,7 @@ int main() {
     printf("Instruções:\n");
     printf("- Digite o número da coluna (0-%d) para colocar o bloco\n", NUM_COLUNAS-1);
     printf("- O jogo acaba quando uma coluna atingir altura %d\n", ALTURA_MAXIMA);
-    printf("- Linhas completas são eliminadas automaticamente\n");
+    printf("- Uma linha só é eliminada se todos os blocos dela forem iguais\n");
     printf("- Pressione 'q' para sair\n\n");
 
     while (!jogo.game_over) {
